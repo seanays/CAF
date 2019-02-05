@@ -1,0 +1,120 @@
+﻿<RibbonWindow x:Class="CAF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CAF"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <DockPanel>
+        <Ribbon x:Name="Ribbon" DockPanel.Dock="Top" SelectedIndex="0">
+            <!-- Help Pane, located at the right-hand side -->
+            <Ribbon.HelpPaneContent>
+                <RibbonButton />
+            </Ribbon.HelpPaneContent>
+            <!-- Quick Access Toolbar - located at the upper-left corner -->
+            <Ribbon.QuickAccessToolBar>
+                <RibbonQuickAccessToolBar>
+                    <RibbonButton x:Name ="Save" />
+                    <RibbonSplitButton x:Name ="Undo" >
+                        <RibbonSplitMenuItem Header="Undo action #1" />
+                        <RibbonSplitMenuItem Header="Undo action #2" />
+                        <RibbonSplitMenuItem Header="Undo action #3" />
+                    </RibbonSplitButton>
+                    <RibbonSplitButton x:Name="Redo" >
+                        <RibbonSplitMenuItem Header="Redo action #1" />
+                        <RibbonSplitMenuItem Header="Redo action #2" />
+                    </RibbonSplitButton>
+                </RibbonQuickAccessToolBar>
+            </Ribbon.QuickAccessToolBar>
+            <!-- Application Menu, located at the left-hand side (down arrow) -->
+            <Ribbon.ApplicationMenu>
+                <RibbonApplicationMenu KeyTip="F">
+                    <RibbonApplicationMenuItem Header="New" />
+                    <RibbonApplicationMenuItem Header="Open" />
+                    <RibbonApplicationMenuItem Header="Save" />
+                    <RibbonApplicationMenuItem Header="Exit" />
+                </RibbonApplicationMenu>
+            </Ribbon.ApplicationMenu>
+            <!-- Ribbon Tab #1: Home -->
+            <RibbonTab Header="Home" KeyTip="H" >
+                <!-- Home/Clipboard group-->
+                <RibbonGroup x:Name="ClipboardGroup" Header="Truss Files">
+                    <RibbonButton Label="Load Truss Files" Command="{Binding ProcessFileCommand}"></RibbonButton>
+                    <RibbonButton Label="Process Components" Command="{Binding ProcessComponentsCommand}"></RibbonButton>
+                    <RibbonButton Label="Export Vision Pick List" Command="{Binding ExportVisionListCommand}"></RibbonButton>
+                    <RibbonButton Label="Export Pre-plate data" Command="{Binding ExportPrePlateDataCommand}"></RibbonButton>
+                    <RibbonButton Label="Export model" Command="{Binding ExportModelCommand}"></RibbonButton>
+
+
+                </RibbonGroup>
+                <!-- Home/Colors group-->
+                <RibbonGroup x:Name="View" Header="Object View">
+
+                    <RibbonCheckBox Label="Show edges"></RibbonCheckBox>
+                    <RibbonCheckBox Label="Show NP"></RibbonCheckBox>
+                    <RibbonCheckBox Label="Show members"></RibbonCheckBox>
+
+
+
+                </RibbonGroup>
+                <RibbonGroup x:Name="GridType" Header="Display">
+                    <RibbonMenuButton Label="Grid Display">
+                        <RibbonRadioButton Label="No grid" GroupName="FloorGridType" IsChecked="{Binding DisableGrid}"></RibbonRadioButton>
+                        <RibbonRadioButton Label="Foot grid" GroupName="FloorGridType" IsChecked="{Binding FtGrid}"></RibbonRadioButton>
+                        <RibbonRadioButton Label="Mm grid" GroupName="FloorGridType" IsChecked="{Binding MeterGrid}"></RibbonRadioButton>
+                    </RibbonMenuButton>
+
+
+                    <RibbonSeparator></RibbonSeparator>
+
+                    <RibbonCheckBox Label="Show Origin"  IsChecked="{Binding ShowOrigin}"></RibbonCheckBox>
+                    <RibbonCheckBox Label="Display inches"  IsChecked="{Binding UseImperialForDisplay}"></RibbonCheckBox>
+                </RibbonGroup>
+            </RibbonTab>
+            <!-- Ribbon Tab #2: Launch -->
+            <RibbonTab Header="Inventory" KeyTip="T">
+                <!-- Launch/Applications group-->
+                <RibbonGroup  Header="Lumber">
+                </RibbonGroup>
+                <!-- Launch/Games group-->
+                <RibbonGroup Header="Nail plates">
+                </RibbonGroup>
+            </RibbonTab>
+        </Ribbon>
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock>Status</TextBlock>
+            </StatusBarItem>
+        </StatusBar>
+        <TabControl>
+            <TabItem Header="Tab1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="1" />
+                        <ColumnDefinition Width="3*"/>
+                    </Grid.ColumnDefinitions>
+                    <GridSplitter Background="Blue" Width="2" HorizontalAlignment="Center" VerticalAlignment="Stretch" Grid.Column="1"/>
+                    <TreeView Grid.Column="0">
+
+                    </TreeView>
+                    <Border Grid.Column="2">
+                        <Viewport3D x:Name="ViewportMain"   
+                                    MinWidth="200" MinHeight="200" >
+
+                            <Viewport3D.Children>
+                                <ModelVisual3D x:Name="LayoutVisualWorldRoot">
+
+                                </ModelVisual3D>
+                            </Viewport3D.Children>
+
+                        </Viewport3D>
+                    </Border>
+
+                </Grid>
+                    
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</RibbonWindow>
