@@ -2,8 +2,9 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:CAF"
+             xmlns:viewModel="clr-namespace:CAF.ViewModel"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <viewModel:ViewModelBase x:Key="ViewModelMain"></viewModel:ViewModelBase>
     </Application.Resources>
 </Application>

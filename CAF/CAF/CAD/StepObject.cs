@@ -12,35 +12,50 @@ namespace CAF.CAD
     {
         public StepObject()
         {
+            Parts = new List<StepPart>();
+
             InitHeader();
             InitFooter();
         }
 
+        public void AddPart(StepPart part)
+        {
+            Parts.Add(part);
+        }
         private void InitFooter()
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"END-ISO-10303-21;");
             Footer = sb.ToString();
-
+            Data = new List<StepFileLineObject>();
         }
 
         public string Header { get; set; }
-        public string  Data { get; set; }
+        public List<StepFileLineObject> Data { get; set; }
         public string Footer { get; set; }
-        
+        public string ApplicationString { get; set; }
+        public string GeneratorString { get; set; }
+        public string FileNameString { get; set; }
+
+        public List<StepPart> Parts { get; set; }
+
+        private IDGenerator idGenerator;
         private void InitHeader()
         {
+            ApplicationString = "HOD";
+
+
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"ISO-10303-21;");
             sb.AppendLine($"HEADER;");
             sb.AppendLine($"FILE_DESCRIPTION (( 'STEP AP214' ),");
             sb.AppendLine($"    '1' );");
-            sb.AppendLine($"FILE_NAME ('Wedge.STEP',");
+            sb.AppendLine($"FILE_NAME ('{FileNameString}',");
             sb.AppendLine($"    '2019-02-05T05:03:52',");
             sb.AppendLine($"    ( '' ),");
             sb.AppendLine($"    ( '' ),");
-            sb.AppendLine($"    'SwSTEP 2.0'");
-            sb.AppendLine($"    'SolidWorks 2018',");
+            sb.AppendLine($"    '{GeneratorString}'");
+            sb.AppendLine($"    '{ApplicationString}',");
             sb.AppendLine($"    '' );");
             sb.AppendLine($"FILE_SCHEMA (( 'AUTOMOTIVE_DESIGN' ));");
             sb.AppendLine($"ENDSEC;");
@@ -48,23 +63,62 @@ namespace CAF.CAD
             Header = sb.ToString();
 
         }
-
-        public int LineCounter { get; private set; }
-
-        public int GetLineID()
+        //traverse nodes and assign IDs before emitting
+        public void GenerateIDs()
         {
-            return LineCounter++;
+            idGenerator = new IDGenerator();
+            foreach (StepPart stepPart in Parts)
+            {
+                foreach (StepLineObject stepLineObject in stepPart.PartLines)
+                {
+                    stepLineObject.SetID(idGenerator);
+                }
+            }
         }
 
+        public string EmitFile()
+        {            
+            StringBuilder sb = new StringBuilder();
 
+            foreach (StepFileLineObject stepFileLineObject in Data)
+            {
+                sb.AppendLine(stepFileLineObject.ToString());
+            }
+
+            return sb.ToString();
+
+        }
+        }
+}
+
+public class StepPart
+{
+    public List<StepLineObject> PartLines { get; set; }
+
+    public StepPart()
+    {
+        
     }
 }
 
+public class IDGenerator
+{
+    private int partIDCounter;
+    public IDGenerator()
+    {
+        partIDCounter = 1;
+
+    }
+    public int GetID()
+    {
+        return partIDCounter++;
+    }
+}
 public abstract class StepObject
 {
     public string EntityString { get; set; }
 }
-public abstract class StepLineObject: StepObject
+public abstract class StepFileLineObject: StepObject
 {
     public const string TrueString = ".T.";
     public const string FalseString = ".F.";
@@ -74,16 +128,19 @@ public abstract class StepLineObject: StepObject
 
     public int ID { get; set; }
 
-    
-    
+    public virtual void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+    }
+
 }
 
-public class StepNamedLineObject : StepLineObject
+public abstract class StepNamedFileLineObject : StepFileLineObject
 {
     public string Name { get; set; }
 }
 
-public class StepCartesianPoint: StepNamedLineObject
+public class StepCartesianPoint: StepNamedFileLineObject
 {
     
     public double X { get; set; }
@@ -95,14 +152,10 @@ public class StepCartesianPoint: StepNamedLineObject
         Name = "NONE";
         EntityString = "CARTESIAN_POINT";
     }
-    public override string ToString()
-    {
-                    
-        return $"#{ID} = {EntityString} ( '{Name}', ({X},{Y},{Z}) );";
-    }
+
 }
 
-public class StepVertexPoint : StepNamedLineObject
+public class StepVertexPoint : StepNamedFileLineObject
 {
     public StepCartesianPoint Point { get; set; }
     
@@ -116,9 +169,10 @@ public class StepVertexPoint : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( '{Name}', #{Point.ID} );";
     }
+
 }
 
-public class StepDirection : StepNamedLineObject
+public class StepDirection : StepNamedFileLineObject
 {
     
     public double X { get; set; }
@@ -139,7 +193,7 @@ public class StepDirection : StepNamedLineObject
 
 }
 
-public class StepVector : StepNamedLineObject
+public class StepVector : StepNamedFileLineObject
 {
     
     public StepDirection Orientation { get; set; }
@@ -156,9 +210,15 @@ public class StepVector : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', (#{Orientation.ID},{Magnitude}) );";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Orientation.SetID(idGenerator);
+    }
+
 }
 
-public class StepOrientedEdge : StepNamedLineObject
+public class StepOrientedEdge : StepNamedFileLineObject
 {
     
     public StepEdgeCurve EdgeElement { get; set; }
@@ -177,9 +237,43 @@ public class StepOrientedEdge : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', *, *, (#{EdgeElement.ID},{orientationString}) );";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        EdgeElement.SetID(idGenerator);
+    }
+
 }
 
-public class StepEdgeCurve : StepNamedLineObject
+public class StepLineObject : StepNamedFileLineObject
+{
+    public StepCartesianPoint Pt { get; set; }
+    public StepVector Dir { get; set; }
+
+
+    public StepLineObject()
+    {
+        EntityString = "LINE";
+        Name = "NONE";
+    }
+
+
+    public override string ToString()
+    {        
+        return $"#{ID} = {EntityString} ( '{Name}', #{Pt.ID},#{Dir.ID});";
+    }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Pt.SetID(idGenerator);
+        Dir.SetID(idGenerator);
+    }
+
+}
+
+public class StepEdgeCurve : StepNamedFileLineObject
 {
     
     public StepVertexPoint EdgeStart { get; set; }
@@ -198,9 +292,16 @@ public class StepEdgeCurve : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', #{EdgeStart.ID}, #{EdgeEnd}, #{EdgeGeometry}, .T. );";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        EdgeStart.SetID(idGenerator);
+        EdgeEnd.SetID(idGenerator);
+        EdgeGeometry.SetID(idGenerator);
+    }
 }
 
-public class StepEdgeLoop : StepNamedLineObject
+public class StepEdgeLoop : StepNamedFileLineObject
 {
     
     public ObservableCollection<StepOrientedEdge> EdgeList { get; set; }
@@ -231,9 +332,19 @@ public class StepEdgeLoop : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', ({sb.ToString()}) );";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        foreach (StepOrientedEdge stepOrientedEdge in EdgeList)
+        {
+            stepOrientedEdge.SetID(idGenerator);
+            
+        }
+    }
 }
 
-public class StepAxis2Placement : StepNamedLineObject
+public class StepAxis2Placement : StepNamedFileLineObject
 {    
     public StepCartesianPoint Location { get; set; }
     public StepDirection Axis { get; set; }
@@ -249,9 +360,17 @@ public class StepAxis2Placement : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', #{Location.ID}, #{Axis.ID}, #{RefDirection.ID} );";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Location.SetID(idGenerator);
+        Axis.SetID(idGenerator);
+        RefDirection.SetID(idGenerator);
+    }
+
 }
 
-public class StepFillAreaStyle : StepNamedLineObject
+public class StepFillAreaStyle : StepNamedFileLineObject
 {    
 
     public StepColorRGB FillStyle { get; set; }
@@ -266,9 +385,17 @@ public class StepFillAreaStyle : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', ( #{FillStyle.ID}) );";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        FillStyle.SetID(idGenerator);
+        
+    }
+
 }
 
-public class StepSurfaceFillAreaStyle : StepNamedLineObject
+public class StepSurfaceFillAreaStyle : StepNamedFileLineObject
 {    
 
     public StepFillAreaStyle FillArea { get; set; }
@@ -283,11 +410,18 @@ public class StepSurfaceFillAreaStyle : StepNamedLineObject
         return $"#{ID} = {EntityString} ( #{FillArea.ID} );";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        FillArea.SetID(idGenerator);
+
+    }
 }
 
 
 
-public class StepColorRGB : StepNamedLineObject
+public class StepColorRGB : StepNamedFileLineObject
 {
     public double R { get; set; }
     public double G { get; set; }
@@ -306,7 +440,7 @@ public class StepColorRGB : StepNamedLineObject
 
 }
 
-public class StepSurfaceStyleUsage : StepLineObject
+public class StepSurfaceStyleUsage : StepFileLineObject
 {    
 
     public StepSurfaceSideStyle Style { get; set; }
@@ -320,9 +454,16 @@ public class StepSurfaceStyleUsage : StepLineObject
     {
         return $"#{ID} = {EntityString}  ( {EnumSideBothString}, #{Style.ID});";
     }
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Style.SetID(idGenerator);
+
+    }
 }
 
-public class StepSurfaceSideStyle : StepNamedLineObject
+public class StepSurfaceSideStyle : StepNamedFileLineObject
 {    
 
     public StepSurfaceFillAreaStyle Styles { get; set; }
@@ -337,11 +478,19 @@ public class StepSurfaceSideStyle : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( {EnumSideBothString}, (#{Styles.ID}) );";
     }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Styles.SetID(idGenerator);
+
+    }
 }
 
 
 
-public class StepCylindricalSurface : StepNamedLineObject
+public class StepCylindricalSurface : StepNamedFileLineObject
 {    
 
     public StepAxis2Placement Position { get; set; }
@@ -358,9 +507,17 @@ public class StepCylindricalSurface : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( '{Name}' , #{Position.ID}, {Radius});";
     }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Position.SetID(idGenerator);
+
+    }
 }
 
-public class StepAdvancedFace : StepNamedLineObject
+public class StepAdvancedFace : StepNamedFileLineObject
 {    
 
     //this should be a list at some point
@@ -384,9 +541,16 @@ public class StepAdvancedFace : StepNamedLineObject
     }
 
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Bounds.SetID(idGenerator);
+        FaceGeometry.SetID(idGenerator);
+
+    }
 }
 
-public class StepFaceOuterBound : StepNamedLineObject
+public class StepFaceOuterBound : StepNamedFileLineObject
 {    
     public StepEdgeLoop Bound { get; set; }
     public bool Orientation { get; set; }
@@ -403,9 +567,15 @@ public class StepFaceOuterBound : StepNamedLineObject
     }
 
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Bound.SetID(idGenerator);        
+
+    }
 }
 
-public class StepPlane : StepNamedLineObject
+public class StepPlane : StepNamedFileLineObject
 {    
 
     public StepAxis2Placement Position { get; set; }
@@ -423,12 +593,20 @@ public class StepPlane : StepNamedLineObject
     }
 
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Position.SetID(idGenerator);
+
+    }
+
 }
 
 
 
-public class StepApplicationProtocolDefinition : StepLineObject
+public class StepApplicationProtocolDefinition : StepFileLineObject
 {
+    public StepApplicationContext Application { get; set; }
     public StepApplicationProtocolDefinition()
     {
         EntityString = "APPLICATION_PROTOCOL_DEFINITION";
@@ -436,12 +614,20 @@ public class StepApplicationProtocolDefinition : StepLineObject
     public override string ToString()
     {
 
-        return $"#{ID} = {EntityString}( 'draft international standard', 'automotive_design', 1998, #108 ) ;";
+        return $"#{ID} = {EntityString}( 'draft international standard', 'automotive_design', 2000, #{Application.ID} ) ;";
     }
-    
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Application.SetID(idGenerator);
+
+    }
+
 }
 
-public class StepUncertaintyMeasureWithUnit : StepLineObject
+public class StepUncertaintyMeasureWithUnit : StepFileLineObject
 {
     public StepLengthUnit Unit { get; set; }
     
@@ -455,9 +641,15 @@ public class StepUncertaintyMeasureWithUnit : StepLineObject
         return $"#{ID} = {EntityString} (LENGTH_MEASURE( 1.000000000000000082E-05 ), #{Unit.ID}, 'distance_accuracy_value', 'NONE');";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Unit.SetID(idGenerator);
+
+    }
 }
 
-public class StepUnit: StepLineObject
+public class StepUnit: StepFileLineObject
 {
 }
 
@@ -490,7 +682,7 @@ public class StepSolidAngleUnit : StepUnit
 }
 
 
-public class StepGeometricRepresentationGroupContext : StepNamedLineObject
+public class StepGeometricRepresentationGroupContext : StepNamedFileLineObject
 {
     
     public StepUncertaintyMeasureWithUnit Uncertainty { get; set; }
@@ -516,15 +708,26 @@ public class StepGeometricRepresentationGroupContext : StepNamedLineObject
         return sb.ToString();
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Uncertainty.SetID(idGenerator);
+        LengthUnit.SetID(idGenerator);
+        PlaneAngleUnit.SetID(idGenerator);
+        SolidAngleUnit.SetID(idGenerator);
+
+    }
 }
 
-public class StepAdvancedBrepShapeRepresentation : StepNamedLineObject
+public class StepAdvancedBrepShapeRepresentation : StepNamedFileLineObject
 {
     public string Name { get; set; }
 
     public StepManifoldSolidBrep Item1 { get; set; }
     public StepAxis2Placement Item2 { get; set; }
     public StepGeometricRepresentationGroupContext Context { get; set; }
+
     public StepAdvancedBrepShapeRepresentation()
     {
         EntityString = "ADVANCED_BREP_SHAPE_REPRESENTATION";
@@ -534,9 +737,18 @@ public class StepAdvancedBrepShapeRepresentation : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( '{Name}' ,(#{Item1.ID}, #{Item2.ID}), #{Context.ID} );";
     }
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Item1.SetID(idGenerator);
+        Item2.SetID(idGenerator);
+        Context.SetID(idGenerator);
+        
+    }
 }
 
-public class StepManifoldSolidBrep : StepNamedLineObject
+public class StepManifoldSolidBrep : StepNamedFileLineObject
 {
     public StepClosedShell Outer { get; set; }
 
@@ -550,9 +762,16 @@ public class StepManifoldSolidBrep : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}' , #{Outer.ID} );";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        Outer.SetID(idGenerator);
+     
+    }
 }
 
-public class StepClosedShell : StepNamedLineObject
+public class StepClosedShell : StepNamedFileLineObject
 {    
     public ObservableCollection<StepAdvancedFace> CfsFaces { get; set; }
 
@@ -581,9 +800,21 @@ public class StepClosedShell : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}' , ({sb}) );";
     }
 
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+        foreach (StepAdvancedFace stepAdvancedFace in CfsFaces)
+        {
+            stepAdvancedFace.SetID(idGenerator);
+        }
+        
+
+    }
 }
 
-public class StepMechanicalDesignGeometricPresentationRepresentation : StepNamedLineObject
+public class StepMechanicalDesignGeometricPresentationRepresentation : StepNamedFileLineObject
 {
     public StepStyledItem Item { get; set; }
     public StepGeometricRepresentationGroupContext Context { get; set; }
@@ -597,9 +828,19 @@ public class StepMechanicalDesignGeometricPresentationRepresentation : StepNamed
     {
         return $"#{ID} = {EntityString} ( '{Name}' ,(#{Item.ID}), #{Context.ID} );";
     }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Item.SetID(idGenerator);
+        Context.SetID(idGenerator);
+
+    }
 }
 
-public class StepStyledItem : StepNamedLineObject
+public class StepStyledItem : StepNamedFileLineObject
 {
     public StepPresentationStyleAssignment Style { get; set; }
     public StepManifoldSolidBrep Item { get; set; }
@@ -615,9 +856,18 @@ public class StepStyledItem : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', (#{Style.ID}), #{Item.ID} );";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Style.SetID(idGenerator);
+        Item.SetID(idGenerator);
+
+    }
 }
 
-public class StepPresentationStyleAssignment : StepLineObject
+public class StepPresentationStyleAssignment : StepFileLineObject
 {
     public StepSurfaceStyleUsage Style { get; set; }
 
@@ -631,9 +881,16 @@ public class StepPresentationStyleAssignment : StepLineObject
         return $"#{ID} = {EntityString} ( (#{Style.ID}) );";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Style.SetID(idGenerator);
+        
+    }
 }
 
-public class StepApplicationContext : StepLineObject
+public class StepApplicationContext : StepFileLineObject
 {
     public StepApplicationContext()
     {
@@ -647,7 +904,7 @@ public class StepApplicationContext : StepLineObject
     }
 }
 
-public class StepPresentationLayerAssignment : StepNamedLineObject
+public class StepPresentationLayerAssignment : StepNamedFileLineObject
 {
     public string Description { get; set; }
 
@@ -663,10 +920,19 @@ public class StepPresentationLayerAssignment : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( '{Name}', '{Description}', (#{AssignedItem.ID}));";
     }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        AssignedItem.SetID(idGenerator);
+
+    }
 }
 
 
-public class StepProduct : StepNamedLineObject
+public class StepProduct : StepNamedFileLineObject
 {
     public string StringID { get; set; }
     public string Description { get; set; }
@@ -681,9 +947,18 @@ public class StepProduct : StepNamedLineObject
     {
         return $"#{ID} = {EntityString} ( '{StringID}', '{Name}', '{Description}', (#{FrameOfReference.ID}));";
     }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        FrameOfReference.SetID(idGenerator);
+
+    }
 }
 
-public class StepProductContext : StepNamedLineObject
+public class StepProductContext : StepNamedFileLineObject
 {
     public StepApplicationContext FrameOfReference { get; set; }
 
@@ -699,27 +974,44 @@ public class StepProductContext : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', #{FrameOfReference.ID}, 'mechanical');";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        FrameOfReference.SetID(idGenerator);
+
+    }
 }
 
-public class StepProductDefinitonShape : StepNamedLineObject
+public class StepProductDefinitionShape : StepNamedFileLineObject
 {
     public string Description { get; set; }
     public StepProductDefinition Definition { get; set; }
 
-    public StepProductDefinitonShape()
+    public StepProductDefinitionShape()
     {
         EntityString = "PRODUCT_DEFINITION_SHAPE";
         Name = "NONE";
         Description = "NONE";
     }
+
     public override string ToString()
     {
         return $"#{ID} = {EntityString} ( '{Name}','{Description}', #{Definition.ID});";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Definition.SetID(idGenerator);
+
+    }
 }
 
-public class StepProductDefinition : StepLineObject
+public class StepProductDefinition : StepFileLineObject
 {
     public string StringID { get; set; }
     public string Description { get; set; }
@@ -739,10 +1031,18 @@ public class StepProductDefinition : StepLineObject
         return $"#{ID} = {EntityString} ( '{StringID}','{Description}', #{Formation.ID}, #{FrameOfReference.ID});";
     }
 
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Formation.SetID(idGenerator);
+        FrameOfReference.SetID(idGenerator);
+
+    }
 }
 
 
-public class StepProductDefinitionFormationWithSpecifiedSource : StepLineObject
+public class StepProductDefinitionFormationWithSpecifiedSource : StepFileLineObject
 {
     public string StringID { get; set; }
     public string Description { get; set; }
@@ -758,9 +1058,45 @@ public class StepProductDefinitionFormationWithSpecifiedSource : StepLineObject
         return $"#{ID} = {EntityString} ( 'ANY','{Description}', #{OfProduct.ID}, .NOT_KNOWN.);";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        OfProduct.SetID(idGenerator);
+        
+
+    }
+
 }
 
-public class StepProductDefinitionContext : StepNamedLineObject
+public class StepShapeDefinitionRepresentation : StepLineObject
+{
+    public StepProductDefinitionShape Definition { get; set; }
+    public StepAdvancedBrepShapeRepresentation  UsedRepresentation { get; set; }
+
+    public StepShapeDefinitionRepresentation()
+    {
+        EntityString = "SHAPE_DEFINITION_REPRESENTATION";
+    }
+
+    public override string ToString()
+    {
+        return $"#{ID} = {EntityString} (  #{Definition.ID}, #{UsedRepresentation.ID});";
+    }
+
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        Definition.SetID(idGenerator);
+        UsedRepresentation.SetID(idGenerator);
+
+
+    }
+}
+public class StepProductDefinitionContext : StepNamedFileLineObject
 {
     public string LifeCycleStage { get; set; }
     public StepApplicationContext FrameOfReference { get; set; }
@@ -777,4 +1113,13 @@ public class StepProductDefinitionContext : StepNamedLineObject
         return $"#{ID} = {EntityString} ( '{Name}', #{FrameOfReference.ID}, '{LifeCycleStage}');";
     }
 
+
+    public override void SetID(IDGenerator idGenerator)
+    {
+        ID = idGenerator.GetID();
+
+        FrameOfReference.SetID(idGenerator);
+
+
+    }
 }

@@ -1,6 +1,6 @@
 ﻿namespace CAF.CAD
 {
-    public class CadBox
+    public class StepFile
     {
         
     }

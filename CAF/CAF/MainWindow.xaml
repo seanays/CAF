@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CAF"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="450" Width="800"  DataContext="{StaticResource ViewModelMain}" >
     <DockPanel>
         <Ribbon x:Name="Ribbon" DockPanel.Dock="Top" SelectedIndex="0">
             <!-- Help Pane, located at the right-hand side -->
@@ -70,6 +70,9 @@
 
                     <RibbonCheckBox Label="Show Origin"  IsChecked="{Binding ShowOrigin}"></RibbonCheckBox>
                     <RibbonCheckBox Label="Display inches"  IsChecked="{Binding UseImperialForDisplay}"></RibbonCheckBox>
+                </RibbonGroup>
+                <RibbonGroup Header="Modeling">
+                    <RibbonButton Label="Create cube" Command="{Binding CreateCubeCommand}"></RibbonButton>
                 </RibbonGroup>
             </RibbonTab>
             <!-- Ribbon Tab #2: Launch -->
